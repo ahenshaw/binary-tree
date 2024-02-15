@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+
+use egui::{Align2, Color32, FontFamily, FontId};
+
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -55,32 +59,56 @@ impl eframe::App for BinaryTreeApp {
         });
     }
 }
+
+
 impl BinaryTreeApp {
     fn tree_view(&self, ui: &mut egui::Ui) {
+        let font_id = FontId{size: 16.0, family: FontFamily::Proportional};
         let r = ui.available_rect_before_wrap();
         let y_spacing = r.height() / self.num_vars as f32;
-        let painter = ui.painter();
+        let painter = ui.painter_at(r);
         let pen = egui::Stroke::new(1.0, egui::Color32::RED);
         let max_nodes = 2usize.pow(self.num_vars as u32);
         let min_x_spacing = r.width() / max_nodes as f32;
 
-        let radius = 0.8 * y_spacing.min(min_x_spacing);
+        let radius = 0.5 * y_spacing.min(min_x_spacing);
+
+        let mut nodes = HashMap::<(usize, usize), egui::Pos2>::new();
 
         for var in 0..self.num_vars {
-            let y = ((var as f32) + 0.5) * y_spacing;
+            let y = ((var as f32) + 0.5) * y_spacing + r.min.y;
             let num_nodes = 2usize.pow(var as u32);
             let x_spacing = r.width() / num_nodes as f32;
             for node in 0..num_nodes {
-                painter.circle(
-                    egui::Pos2 {
-                        x: x_spacing * (node as f32 + 0.5),
-                        y,
-                    },
-                    radius,
-                    egui::Color32::BLACK,
-                    pen,
-                );
+                let pt = egui::Pos2 {
+                    x: x_spacing * (node as f32 + 0.5) + r.min.x,
+                    y,
+                };
+                nodes.insert((var, node), pt);
             }
         }
+        let mut ordered: Vec<(&(usize, usize), &egui::Pos2)> = nodes.iter().collect();
+        ordered.sort_by_key(|((a,b), _)| (a, b));
+        for ((var, node), pt) in ordered {
+            let child0 = (var + 1, node * 2);
+            let child1 = (var + 1, node * 2 + 1);
+            if let Some(child_pt) = nodes.get(&child0) {
+                painter.line_segment([*pt, *child_pt], pen);
+            }
+            if let Some(child_pt) = nodes.get(&child1) {
+                painter.line_segment([*pt, *child_pt], pen);
+            }
+            painter.circle(
+                *pt,
+                radius * (self.num_vars - var) as f32,
+                egui::Color32::BLACK,
+                pen,
+            );
+
+            let text = if *var > 0 {format!("{node:0width$b}", width=var)} else {format!("--")};
+            painter.text(*pt, Align2::CENTER_CENTER, text, font_id.clone(), Color32::WHITE);
+
+        }
+
     }
 }
