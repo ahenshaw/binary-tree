@@ -47,7 +47,7 @@ impl eframe::App for BinaryTreeApp {
                     }
                 });
                 ui.add(
-                    egui::widgets::Slider::new(&mut self.num_vars, 1..=MAX_LEVEL).prefix("Vars:"),
+                    egui::widgets::Slider::new(&mut self.num_vars, 1..=MAX_LEVEL).prefix("Tiers: "),
                 );
 
                 egui::widgets::global_dark_light_mode_switch(ui);
@@ -60,18 +60,14 @@ impl eframe::App for BinaryTreeApp {
     }
 }
 
-
 impl BinaryTreeApp {
     fn tree_view(&self, ui: &mut egui::Ui) {
-        let font_id = FontId{size: 16.0, family: FontFamily::Proportional};
         let r = ui.available_rect_before_wrap();
         let y_spacing = r.height() / self.num_vars as f32;
         let painter = ui.painter_at(r);
-        let pen = egui::Stroke::new(1.0, egui::Color32::RED);
-        let max_nodes = 2usize.pow(self.num_vars as u32);
-        let min_x_spacing = r.width() / max_nodes as f32;
-
-        let radius = 0.5 * y_spacing.min(min_x_spacing);
+        let pen = egui::Stroke::new(1.0, egui::Color32::from_rgb(255, 69, 0));
+        // let max_nodes = 2usize.pow(self.num_vars as u32);
+        // let min_x_spacing = r.width() / max_nodes as f32;
 
         let mut nodes = HashMap::<(usize, usize), egui::Pos2>::new();
 
@@ -88,8 +84,14 @@ impl BinaryTreeApp {
             }
         }
         let mut ordered: Vec<(&(usize, usize), &egui::Pos2)> = nodes.iter().collect();
-        ordered.sort_by_key(|((a,b), _)| (a, b));
+        ordered.sort_by_key(|((a, b), _)| (a, b));
         for ((var, node), pt) in ordered {
+            let radius = y_spacing.min(r.width() / (2usize.pow(*var as u32) as f32)) / 3.0;
+            let font_id = FontId {
+                size: radius / 3.0, //0.0 + 3.0 * ((self.num_vars - *var) as f32),
+                family: FontFamily::Proportional,
+            };
+
             let child0 = (var + 1, node * 2);
             let child1 = (var + 1, node * 2 + 1);
             if let Some(child_pt) = nodes.get(&child0) {
@@ -98,17 +100,20 @@ impl BinaryTreeApp {
             if let Some(child_pt) = nodes.get(&child1) {
                 painter.line_segment([*pt, *child_pt], pen);
             }
-            painter.circle(
-                *pt,
-                radius * (self.num_vars - var) as f32,
-                egui::Color32::BLACK,
-                pen,
-            );
+            // radius for all nodes at this level
+            painter.circle(*pt, radius, egui::Color32::BLACK, pen);
 
-            let text = if *var > 0 {format!("{node:0width$b}", width=var)} else {format!("--")};
-            painter.text(*pt, Align2::CENTER_CENTER, text, font_id.clone(), Color32::WHITE);
-
+            let text = match *var {
+                0 => format!("…"),
+                _ => {
+                    let mut fmt = format!("{node:0width$b}", width = var);
+                    if *var != self.num_vars - 1 {
+                        fmt += "…";
+                    }
+                    fmt
+                }
+            };
+            painter.text(*pt, Align2::CENTER_CENTER, text, font_id, Color32::WHITE);
         }
-
     }
 }
