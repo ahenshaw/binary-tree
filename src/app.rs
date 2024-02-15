@@ -11,16 +11,13 @@ impl Default for BinaryTreeApp {
     }
 }
 
-const MAX_LEVEL: usize = 12;
+const MAX_LEVEL: usize = 10;
 
 impl BinaryTreeApp {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // This is also where you can customize the look and feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
         // Load previous app state (if any).
-        // Note that you must enable the `persistence` feature for this to work.
         if let Some(storage) = cc.storage {
             return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
         }
@@ -54,7 +51,6 @@ impl eframe::App for BinaryTreeApp {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
             self.tree_view(ui);
         });
     }
@@ -66,18 +62,18 @@ impl BinaryTreeApp {
         let painter = ui.painter();
         let pen = egui::Stroke::new(1.0, egui::Color32::RED);
         let max_nodes = 2usize.pow(self.num_vars as u32);
-        let min_x_spacing = r.width() / (max_nodes + 1) as f32;
+        let min_x_spacing = r.width() / max_nodes as f32;
 
         let radius = 0.8 * y_spacing.min(min_x_spacing);
 
         for var in 0..self.num_vars {
             let y = ((var as f32) + 0.5) * y_spacing;
             let num_nodes = 2usize.pow(var as u32);
-            let x_spacing = r.width() / (num_nodes + 1) as f32;
+            let x_spacing = r.width() / num_nodes as f32;
             for node in 0..num_nodes {
                 painter.circle(
                     egui::Pos2 {
-                        x: x_spacing * (node as f32 + 1.0),
+                        x: x_spacing * (node as f32 + 0.5),
                         y,
                     },
                     radius,
