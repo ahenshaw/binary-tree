@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::tree::{Edge, EdgeState, Edges, Node, NodeState, Nodes};
 use egui::{Align2, Color32, FontFamily, FontId};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -47,7 +48,8 @@ impl eframe::App for BinaryTreeApp {
                     }
                 });
                 ui.add(
-                    egui::widgets::Slider::new(&mut self.num_vars, 1..=MAX_LEVEL).prefix("Tiers: "),
+                    egui::widgets::Slider::new(&mut self.num_vars, 1..=MAX_LEVEL)
+                        .prefix("Levels: "),
                 );
 
                 egui::widgets::global_dark_light_mode_switch(ui);
@@ -88,7 +90,7 @@ impl BinaryTreeApp {
         for ((var, node), pt) in ordered {
             let radius = y_spacing.min(r.width() / (2usize.pow(*var as u32) as f32)) / 3.0;
             let font_id = FontId {
-                size: radius / 3.0, //0.0 + 3.0 * ((self.num_vars - *var) as f32),
+                size: radius / 2.5, //0.0 + 3.0 * ((self.num_vars - *var) as f32),
                 family: FontFamily::Proportional,
             };
 
