@@ -3,4 +3,4 @@
 mod app;
 pub use app::BinaryTreeApp;
 
-mod tree;
+pub mod tree;
