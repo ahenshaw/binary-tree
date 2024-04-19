@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::tree::{Edge, EdgeState, Edges, Node, NodeState, Nodes};
+
 use egui::{Align2, Color32, FontFamily, FontId};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -93,7 +93,14 @@ impl BinaryTreeApp {
                 size: radius / 2.5, //0.0 + 3.0 * ((self.num_vars - *var) as f32),
                 family: FontFamily::Proportional,
             };
+            let text = match *var {
+                0 => String::new(),
+                _ => {
+                    format!("{node:0width$b}", width = var)
+                }
+            };
 
+            // dbg!(base);
             let child0 = (var + 1, node * 2);
             let child1 = (var + 1, node * 2 + 1);
             if let Some(child_pt) = nodes.get(&child0) {
@@ -106,7 +113,7 @@ impl BinaryTreeApp {
             painter.circle(*pt, radius, egui::Color32::BLACK, pen);
 
             let text = match *var {
-                0 => format!("…"),
+                0 => "…".to_string(),
                 _ => {
                     let mut fmt = format!("{node:0width$b}", width = var);
                     if *var != self.num_vars - 1 {
