@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use egui::{Align2, Color32, FontFamily, FontId, RichText, Visuals};
+use egui::{Align2, Color32, FontFamily, FontId, Pos2, RichText, Visuals};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -78,6 +78,10 @@ impl BinaryTreeApp {
         // let min_x_spacing = r.width() / max_nodes as f32;
 
         let mut nodes = HashMap::<(usize, usize), egui::Pos2>::new();
+        let font_id = FontId {
+            size: 20.0,
+            family: FontFamily::Proportional,
+        };
 
         for var in 0..self.num_vars {
             let y = ((var as f32) + 0.5) * y_spacing + r.min.y;
@@ -89,6 +93,19 @@ impl BinaryTreeApp {
                     y,
                 };
                 nodes.insert((var, node), pt);
+            }
+            if var > 0 {
+                let c = (0x60u8 + var as u8) as char;
+                painter.text(
+                    Pos2 {
+                        x: r.width() / 2.0 + 10.0,
+                        y: y - y_spacing / 2.0,
+                    },
+                    Align2::CENTER_CENTER,
+                    c.to_string(),
+                    font_id.clone(),
+                    Color32::BLACK,
+                );
             }
         }
         let mut ordered: Vec<(&(usize, usize), &egui::Pos2)> = nodes.iter().collect();
@@ -118,13 +135,7 @@ impl BinaryTreeApp {
             // radius for all nodes at this level
             painter.circle(*pt, radius, egui::Color32::LIGHT_YELLOW, pen);
 
-            let text = match *var {
-                0 => String::new(),
-                _ => {
-                    format!("{node:0width$b}", width = var)
-                }
-            };
-            let text = format!("{text:.<width$}", width = self.num_vars - 1);
+            let text = format!("{base:.<width$}", width = self.num_vars - 1);
             painter.text(*pt, Align2::CENTER_CENTER, text, font_id, Color32::BLACK);
         }
     }
