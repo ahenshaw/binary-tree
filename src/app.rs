@@ -1,18 +1,21 @@
 use std::collections::HashMap;
 
-
-use egui::{Align2, Color32, FontFamily, FontId};
+use egui::{Align2, Color32, FontFamily, FontId, RichText, Visuals};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct BinaryTreeApp {
     num_vars: usize,
+    objective: Option<String>,
 }
 
 impl Default for BinaryTreeApp {
     fn default() -> Self {
-        Self { num_vars: 4 }
+        Self {
+            num_vars: 4,
+            objective: Some("2a + 3b".to_string()),
+        }
     }
 }
 
@@ -40,8 +43,10 @@ impl eframe::App for BinaryTreeApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.set_pixels_per_point(1.0);
+        ctx.set_visuals(Visuals::light());
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
+                egui::widgets::global_dark_light_mode_switch(ui);
                 ui.menu_button("File", |ui| {
                     if ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -51,8 +56,6 @@ impl eframe::App for BinaryTreeApp {
                     egui::widgets::Slider::new(&mut self.num_vars, 1..=MAX_LEVEL)
                         .prefix("Levels: "),
                 );
-
-                egui::widgets::global_dark_light_mode_switch(ui);
             });
         });
 
@@ -64,10 +67,13 @@ impl eframe::App for BinaryTreeApp {
 
 impl BinaryTreeApp {
     fn tree_view(&self, ui: &mut egui::Ui) {
+        if let Some(objective) = &self.objective {
+            ui.label(RichText::new(format!("obj: {objective}")).size(20.0));
+        }
         let r = ui.available_rect_before_wrap();
         let y_spacing = r.height() / self.num_vars as f32;
         let painter = ui.painter_at(r);
-        let pen = egui::Stroke::new(1.0, egui::Color32::from_rgb(255, 69, 0));
+        let pen = egui::Stroke::new(1.0, egui::Color32::BLACK);
         // let max_nodes = 2usize.pow(self.num_vars as u32);
         // let min_x_spacing = r.width() / max_nodes as f32;
 
@@ -93,7 +99,7 @@ impl BinaryTreeApp {
                 size: radius / 2.5, //0.0 + 3.0 * ((self.num_vars - *var) as f32),
                 family: FontFamily::Proportional,
             };
-            let text = match *var {
+            let base = match *var {
                 0 => String::new(),
                 _ => {
                     format!("{node:0width$b}", width = var)
@@ -110,19 +116,16 @@ impl BinaryTreeApp {
                 painter.line_segment([*pt, *child_pt], pen);
             }
             // radius for all nodes at this level
-            painter.circle(*pt, radius, egui::Color32::BLACK, pen);
+            painter.circle(*pt, radius, egui::Color32::LIGHT_YELLOW, pen);
 
             let text = match *var {
-                0 => "…".to_string(),
+                0 => String::new(),
                 _ => {
-                    let mut fmt = format!("{node:0width$b}", width = var);
-                    if *var != self.num_vars - 1 {
-                        fmt += "…";
-                    }
-                    fmt
+                    format!("{node:0width$b}", width = var)
                 }
             };
-            painter.text(*pt, Align2::CENTER_CENTER, text, font_id, Color32::WHITE);
+            let text = format!("{text:.<width$}", width = self.num_vars - 1);
+            painter.text(*pt, Align2::CENTER_CENTER, text, font_id, Color32::BLACK);
         }
     }
 }
