@@ -7,14 +7,23 @@ use egui::{Align2, Color32, FontFamily, FontId, Pos2, RichText, Visuals};
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct BinaryTreeApp {
     num_vars: usize,
-    objective: Option<String>,
+    obj: Vec<i64>,
+    obj_label: Option<String>,
 }
 
 impl Default for BinaryTreeApp {
     fn default() -> Self {
+        let num_vars = 4;
+        let obj: Vec<i64> = (1..num_vars).map(|x| x as i64).collect();
+        let obj_label = obj
+            .iter()
+            .enumerate()
+            .map(|(i, c)| format!("{c}x{}", char::from_u32('\u{2080}' as u32 + (i + 1) as u32).unwrap()))
+            .collect::<Vec<String>>().join(" + ");
         Self {
             num_vars: 4,
-            objective: Some("2a + 3b".to_string()),
+            obj: obj,
+            obj_label: Some(obj_label),
         }
     }
 }
@@ -24,11 +33,11 @@ const MAX_LEVEL: usize = 10;
 impl BinaryTreeApp {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        cc.egui_ctx.set_visuals(egui::Visuals::dark());
+        cc.egui_ctx.set_visuals(egui::Visuals::light());
         // Load previous app state (if any).
-        if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-        }
+        // if let Some(storage) = cc.storage {
+        //     return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+        // }
 
         Default::default()
     }
@@ -43,10 +52,9 @@ impl eframe::App for BinaryTreeApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.set_pixels_per_point(1.0);
-        ctx.set_visuals(Visuals::light());
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
-                egui::widgets::global_dark_light_mode_switch(ui);
+                // egui::widgets::global_dark_light_mode_switch(ui);
                 ui.menu_button("File", |ui| {
                     if ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -67,8 +75,8 @@ impl eframe::App for BinaryTreeApp {
 
 impl BinaryTreeApp {
     fn tree_view(&self, ui: &mut egui::Ui) {
-        if let Some(objective) = &self.objective {
-            ui.label(RichText::new(format!("obj: {objective}")).size(20.0));
+        if let Some(objective) = &self.obj_label {
+            ui.label(RichText::new(format!("z = {objective}")).size(20.0));
         }
         let r = ui.available_rect_before_wrap();
         let y_spacing = r.height() / self.num_vars as f32;
@@ -79,7 +87,7 @@ impl BinaryTreeApp {
 
         let mut nodes = HashMap::<(usize, usize), egui::Pos2>::new();
         let font_id = FontId {
-            size: 20.0,
+            size: 24.0,
             family: FontFamily::Proportional,
         };
 
@@ -95,14 +103,14 @@ impl BinaryTreeApp {
                 nodes.insert((var, node), pt);
             }
             if var > 0 {
-                let c = (0x60u8 + var as u8) as char;
+                let c = char::from_u32('\u{2080}' as u32 + var as u32).unwrap();
                 painter.text(
                     Pos2 {
                         x: r.width() / 2.0 + 10.0,
                         y: y - y_spacing / 2.0,
                     },
                     Align2::CENTER_CENTER,
-                    c.to_string(),
+                    format!("x{c}"),
                     font_id.clone(),
                     Color32::BLACK,
                 );
@@ -113,7 +121,7 @@ impl BinaryTreeApp {
         for ((var, node), pt) in ordered {
             let radius = y_spacing.min(r.width() / (2usize.pow(*var as u32) as f32)) / 3.0;
             let font_id = FontId {
-                size: radius / 2.5, //0.0 + 3.0 * ((self.num_vars - *var) as f32),
+                size: radius / 2.5,
                 family: FontFamily::Proportional,
             };
             let base = match *var {

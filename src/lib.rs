@@ -4,7 +4,7 @@ use std::collections::HashMap;
 mod app;
 pub use app::BinaryTreeApp;
 
-mod tree;
+// mod tree;
 
 pub enum State {
     Default,
