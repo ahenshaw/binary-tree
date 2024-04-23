@@ -1,29 +1,33 @@
 use std::collections::HashMap;
-
 use egui::{Align2, Color32, FontFamily, FontId, Pos2, RichText, Visuals};
+use balas::Balas;
+use serde_json;
+use std::path::Path;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct BinaryTreeApp {
     num_vars: usize,
-    obj: Vec<i64>,
+    obj: Vec<f64>,
     obj_label: Option<String>,
+    balas: Option<Balas<f64>>,
 }
 
 impl Default for BinaryTreeApp {
     fn default() -> Self {
-        let num_vars = 4;
-        let obj: Vec<i64> = (1..num_vars).map(|x| x as i64).collect();
+        let num_vars = 1;
+        let obj: Vec<f64> = (1..num_vars+1).map(|x| x as f64).collect();
         let obj_label = obj
             .iter()
             .enumerate()
             .map(|(i, c)| format!("{c}x{}", char::from_u32('\u{2080}' as u32 + (i + 1) as u32).unwrap()))
             .collect::<Vec<String>>().join(" + ");
         Self {
-            num_vars: 4,
+            num_vars: 1,
             obj: obj,
             obj_label: Some(obj_label),
+            balas: None,
         }
     }
 }
@@ -56,13 +60,18 @@ impl eframe::App for BinaryTreeApp {
             egui::menu::bar(ui, |ui| {
                 // egui::widgets::global_dark_light_mode_switch(ui);
                 ui.menu_button("File", |ui| {
+                    if ui.button("Open file…").clicked() {
+                        if let Some(path) = rfd::FileDialog::new().pick_file() {
+                            self.load(&path);
+                        }
+                    }
                     if ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
                 ui.add(
                     egui::widgets::Slider::new(&mut self.num_vars, 1..=MAX_LEVEL)
-                        .prefix("Levels: "),
+                        .prefix("Vars: ")
                 );
             });
         });
@@ -74,12 +83,21 @@ impl eframe::App for BinaryTreeApp {
 }
 
 impl BinaryTreeApp {
+    fn load(&mut self, path: &Path) {
+        if let Ok(serialized) = std::fs::read_to_string(path) {
+            if let Ok(balas) = serde_json::from_str::<Balas<f64>>(&serialized) {
+                self.num_vars = balas.coefficients.len();
+                self.balas = Some(balas);
+            }
+        }
+    }
+
     fn tree_view(&self, ui: &mut egui::Ui) {
         if let Some(objective) = &self.obj_label {
             ui.label(RichText::new(format!("z = {objective}")).size(20.0));
         }
         let r = ui.available_rect_before_wrap();
-        let y_spacing = r.height() / self.num_vars as f32;
+        let y_spacing = r.height() / (self.num_vars + 1) as f32;
         let painter = ui.painter_at(r);
         let pen = egui::Stroke::new(1.0, egui::Color32::BLACK);
         // let max_nodes = 2usize.pow(self.num_vars as u32);
@@ -91,7 +109,7 @@ impl BinaryTreeApp {
             family: FontFamily::Proportional,
         };
 
-        for var in 0..self.num_vars {
+        for var in 0..self.num_vars+1 {
             let y = ((var as f32) + 0.5) * y_spacing + r.min.y;
             let num_nodes = 2usize.pow(var as u32);
             let x_spacing = r.width() / num_nodes as f32;
@@ -143,7 +161,7 @@ impl BinaryTreeApp {
             // radius for all nodes at this level
             painter.circle(*pt, radius, egui::Color32::LIGHT_YELLOW, pen);
 
-            let text = format!("{base:.<width$}", width = self.num_vars - 1);
+            let text = format!("{base:×<width$}", width = self.num_vars);
             painter.text(*pt, Align2::CENTER_CENTER, text, font_id, Color32::BLACK);
         }
     }

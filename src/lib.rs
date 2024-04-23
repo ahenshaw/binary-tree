@@ -5,13 +5,3 @@ mod app;
 pub use app::BinaryTreeApp;
 
 // mod tree;
-
-pub enum State {
-    Default,
-    Active,
-    Visited,
-    Fathomed,
-    Infeasible,
-}
-
-pub type States = HashMap<String, State>;
