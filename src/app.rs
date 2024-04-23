@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use egui::{Align2, Color32, FontFamily, FontId, Pos2, RichText, Visuals};
+use egui::{Align2, Color32, FontFamily, FontId, Pos2, RichText};
 use balas::Balas;
 use serde_json;
 use std::path::Path;
@@ -12,27 +12,22 @@ pub struct BinaryTreeApp {
     obj: Vec<f64>,
     obj_label: Option<String>,
     balas: Option<Balas<f64>>,
+    step: usize,
 }
 
 impl Default for BinaryTreeApp {
     fn default() -> Self {
-        let num_vars = 1;
-        let obj: Vec<f64> = (1..num_vars+1).map(|x| x as f64).collect();
-        let obj_label = obj
-            .iter()
-            .enumerate()
-            .map(|(i, c)| format!("{c}x{}", char::from_u32('\u{2080}' as u32 + (i + 1) as u32).unwrap()))
-            .collect::<Vec<String>>().join(" + ");
         Self {
             num_vars: 1,
-            obj: obj,
-            obj_label: Some(obj_label),
+            obj: vec![],
+            obj_label: None,
             balas: None,
+            step: 0,
         }
     }
 }
 
-const MAX_LEVEL: usize = 10;
+const MAX_VARS: usize = 9;
 
 impl BinaryTreeApp {
     /// Called once before the first frame.
@@ -65,14 +60,30 @@ impl eframe::App for BinaryTreeApp {
                             self.load(&path);
                         }
                     }
+
+                    if ui.button("Close").clicked() {
+                        self.balas = None;
+                        self.num_vars = 1;
+                        self.obj = vec![];
+                        self.obj_label = None;
+                    }
+
                     if ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
-                ui.add(
-                    egui::widgets::Slider::new(&mut self.num_vars, 1..=MAX_LEVEL)
-                        .prefix("Vars: ")
-                );
+                match &self.balas {
+                    Some(balas) => {
+                        ui.label("  playback:");
+                        ui.add(egui::widgets::Slider::new(&mut self.step, 0..=balas.recording.len()-1)
+                        );
+                    },
+                    None => {
+                        ui.label("  # vars:");
+                        ui.add(egui::widgets::Slider::new(&mut self.num_vars, 1..=MAX_VARS)
+                        );
+                    }
+                }
             });
         });
 
@@ -87,10 +98,20 @@ impl BinaryTreeApp {
         if let Ok(serialized) = std::fs::read_to_string(path) {
             if let Ok(balas) = serde_json::from_str::<Balas<f64>>(&serialized) {
                 self.num_vars = balas.coefficients.len();
+                self.obj = balas.coefficients.clone();
+                let label = self.obj
+                .iter()
+                .enumerate()
+                .map(|(i, c)| format!("{c}x{}", char::from_u32('\u{2080}' as u32 + (i + 1) as u32).unwrap()))
+                .collect::<Vec<String>>().join(" + ");
+
+                self.obj_label = Some(label);
                 self.balas = Some(balas);
+                self.step = 0;
             }
         }
     }
+
 
     fn tree_view(&self, ui: &mut egui::Ui) {
         if let Some(objective) = &self.obj_label {
