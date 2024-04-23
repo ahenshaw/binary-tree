@@ -1,8 +1,10 @@
-use std::collections::HashMap;
-use egui::{Align2, Color32, FontFamily, FontId, Pos2, RichText};
-use balas::Balas;
+use balas::{Balas, NodeState};
+use egui::{Align2, Color32, FontFamily, FontId, Pos2, RichText, Stroke};
 use serde_json;
+use std::collections::HashMap;
 use std::path::Path;
+
+type State = HashMap<String, balas::NodeState>;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -13,6 +15,7 @@ pub struct BinaryTreeApp {
     obj_label: Option<String>,
     balas: Option<Balas<f64>>,
     step: usize,
+    states: Vec<State>,
 }
 
 impl Default for BinaryTreeApp {
@@ -23,6 +26,7 @@ impl Default for BinaryTreeApp {
             obj_label: None,
             balas: None,
             step: 0,
+            states: vec![],
         }
     }
 }
@@ -37,7 +41,6 @@ impl BinaryTreeApp {
         // if let Some(storage) = cc.storage {
         //     return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
         // }
-
         Default::default()
     }
 }
@@ -57,7 +60,7 @@ impl eframe::App for BinaryTreeApp {
                 ui.menu_button("File", |ui| {
                     if ui.button("Open file…").clicked() {
                         if let Some(path) = rfd::FileDialog::new().pick_file() {
-                            self.load(&path);
+                            self.load_recording(&path);
                         }
                     }
 
@@ -66,6 +69,7 @@ impl eframe::App for BinaryTreeApp {
                         self.num_vars = 1;
                         self.obj = vec![];
                         self.obj_label = None;
+                        self.states = vec![];
                     }
 
                     if ui.button("Quit").clicked() {
@@ -75,13 +79,14 @@ impl eframe::App for BinaryTreeApp {
                 match &self.balas {
                     Some(balas) => {
                         ui.label("  playback:");
-                        ui.add(egui::widgets::Slider::new(&mut self.step, 0..=balas.recording.len()-1)
-                        );
-                    },
+                        ui.add(egui::widgets::Slider::new(
+                            &mut self.step,
+                            0..=balas.recording.len() - 1,
+                        ));
+                    }
                     None => {
                         ui.label("  # vars:");
-                        ui.add(egui::widgets::Slider::new(&mut self.num_vars, 1..=MAX_VARS)
-                        );
+                        ui.add(egui::widgets::Slider::new(&mut self.num_vars, 1..=MAX_VARS));
                     }
                 }
             });
@@ -94,33 +99,54 @@ impl eframe::App for BinaryTreeApp {
 }
 
 impl BinaryTreeApp {
-    fn load(&mut self, path: &Path) {
+    fn load_recording(&mut self, path: &Path) {
         if let Ok(serialized) = std::fs::read_to_string(path) {
             if let Ok(balas) = serde_json::from_str::<Balas<f64>>(&serialized) {
                 self.num_vars = balas.coefficients.len();
                 self.obj = balas.coefficients.clone();
-                let label = self.obj
-                .iter()
-                .enumerate()
-                .map(|(i, c)| format!("{c}x{}", char::from_u32('\u{2080}' as u32 + (i + 1) as u32).unwrap()))
-                .collect::<Vec<String>>().join(" + ");
+                let label = self
+                    .obj
+                    .iter()
+                    .enumerate()
+                    .map(|(i, c)| {
+                        format!(
+                            "{c}x{}",
+                            char::from_u32('\u{2080}' as u32 + (i + 1) as u32).unwrap()
+                        )
+                    })
+                    .collect::<Vec<String>>()
+                    .join(" + ");
 
                 self.obj_label = Some(label);
-                self.balas = Some(balas);
                 self.step = 0;
+                self.states = vec![];
+                let mut state = State::new();
+                for record in &balas.recording {
+                    state.insert(record.node.clone(), record.state.clone());
+                    match record.state {
+                        NodeState::ImpossibleChildren => {
+                            println!("{}", record.node);
+                            for xtra in crate::Binary::new(self.num_vars - record.node.len()) {
+                                state.insert(record.node.clone() + &xtra, NodeState::Skipped);
+                            }
+                        }
+                        _ => (),
+                    }
+                    self.states.push(state.clone());
+                }
+                self.balas = Some(balas);
             }
         }
     }
 
-
-    fn tree_view(&self, ui: &mut egui::Ui) {
+    fn tree_view(&mut self, ui: &mut egui::Ui) {
         if let Some(objective) = &self.obj_label {
             ui.label(RichText::new(format!("z = {objective}")).size(20.0));
         }
         let r = ui.available_rect_before_wrap();
         let y_spacing = r.height() / (self.num_vars + 1) as f32;
         let painter = ui.painter_at(r);
-        let pen = egui::Stroke::new(1.0, egui::Color32::BLACK);
+        let edge_pen = egui::Stroke::new(1.0, egui::Color32::BLACK);
         // let max_nodes = 2usize.pow(self.num_vars as u32);
         // let min_x_spacing = r.width() / max_nodes as f32;
 
@@ -129,8 +155,12 @@ impl BinaryTreeApp {
             size: 24.0,
             family: FontFamily::Proportional,
         };
+        let states = match self.states.get(self.step) {
+            Some(states) => states.clone(),
+            None => State::new(),
+        };
 
-        for var in 0..self.num_vars+1 {
+        for var in 0..self.num_vars + 1 {
             let y = ((var as f32) + 0.5) * y_spacing + r.min.y;
             let num_nodes = 2usize.pow(var as u32);
             let x_spacing = r.width() / num_nodes as f32;
@@ -170,17 +200,27 @@ impl BinaryTreeApp {
                 }
             };
 
-            // dbg!(base);
+            let (fill, pen) = match states.get(&base) {
+                Some(NodeState::Active) => (Color32::LIGHT_YELLOW, Stroke::new(4.0, Color32::GOLD)),
+                Some(NodeState::Visited) => (Color32::LIGHT_BLUE, Stroke::new(1.0, Color32::BLACK)),
+                Some(NodeState::Infeasible) => (Color32::RED, Stroke::new(1.0, Color32::GRAY)),
+                Some(NodeState::Fathomed) => (Color32::GREEN, Stroke::new(1.0, Color32::GRAY)),
+                Some(NodeState::ImpossibleChildren) => {
+                    (Color32::LIGHT_GRAY, Stroke::new(1.0, Color32::GRAY))
+                }
+                Some(NodeState::Skipped) => (Color32::DARK_GRAY, Stroke::new(1.0, Color32::GRAY)),
+                _ => (Color32::LIGHT_YELLOW, Stroke::new(1.0, Color32::BLACK)),
+            };
             let child0 = (var + 1, node * 2);
             let child1 = (var + 1, node * 2 + 1);
             if let Some(child_pt) = nodes.get(&child0) {
-                painter.line_segment([*pt, *child_pt], pen);
+                painter.line_segment([*pt, *child_pt], edge_pen);
             }
             if let Some(child_pt) = nodes.get(&child1) {
-                painter.line_segment([*pt, *child_pt], pen);
+                painter.line_segment([*pt, *child_pt], edge_pen);
             }
             // radius for all nodes at this level
-            painter.circle(*pt, radius, egui::Color32::LIGHT_YELLOW, pen);
+            painter.circle(*pt, radius, fill, pen);
 
             let text = format!("{base:×<width$}", width = self.num_vars);
             painter.text(*pt, Align2::CENTER_CENTER, text, font_id, Color32::BLACK);
